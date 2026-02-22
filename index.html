@@ -94,6 +94,11 @@
       background-color: #f8d7da;
       color: #721c24;
     }
+
+    .info {
+      background-color: #d1ecf1;
+      color: #0c5460;
+    }
   </style>
 </head>
 
@@ -142,16 +147,26 @@
     }
 
 
-    function showStatus(msg, type) {
+    var statusTimeout;
+
+    function showStatus(msg, type, keepAlive) {
       var el = document.getElementById('status');
       el.innerText = msg;
-      el.className = type; // success or error
+      el.className = type; // success, error, or info
       el.style.display = 'block';
-      setTimeout(function () { el.style.display = 'none'; }, 5000);
+
+      if (statusTimeout) {
+        clearTimeout(statusTimeout);
+      }
+
+      if (!keepAlive) {
+        statusTimeout = setTimeout(function () { el.style.display = 'none'; }, 5000);
+      }
     }
 
     function createMonth() {
       var m = getSelectedMonth();
+      showStatus('Creating month ' + m + '...', 'info', true);
       google.script.run
         .withSuccessHandler(function (res) { showStatus(res, 'success'); })
         .withFailureHandler(function (err) { showStatus(err.message, 'error'); })
@@ -161,6 +176,7 @@
     function clearMonth() {
       if (!confirm('Are you sure you want to delete this month tab?')) return;
       var m = getSelectedMonth();
+      showStatus('Clearing month ' + m + '...', 'info', true);
       google.script.run
         .withSuccessHandler(function (res) { showStatus(res, 'success'); })
         .withFailureHandler(function (err) { showStatus(err.message, 'error'); })
@@ -169,6 +185,7 @@
 
     function createTestData() {
       var m = getSelectedMonth();
+      showStatus('Creating test data for ' + m + '...', 'info', true);
       google.script.run
         .withSuccessHandler(function (res) { showStatus(res, 'success'); })
         .withFailureHandler(function (err) { showStatus(err.message, 'error'); })
@@ -177,6 +194,7 @@
 
     function runLottery() {
       var m = getSelectedMonth();
+      showStatus('Running lottery for ' + m + '...', 'info', true);
       google.script.run
         .withSuccessHandler(function (res) { showStatus(res, 'success'); })
         .withFailureHandler(function (err) { showStatus(err.message, 'error'); })
@@ -185,6 +203,7 @@
 
     function updateSignup() {
       var m = getSelectedMonth();
+      showStatus('Updating signup sheet for ' + m + '...', 'info', true);
       google.script.run
         .withSuccessHandler(function (res) { showStatus(res, 'success'); })
         .withFailureHandler(function (err) { showStatus(err.message, 'error'); })
