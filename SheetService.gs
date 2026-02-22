@@ -359,7 +359,9 @@ var SheetService = (function() {
      // Clear any inherited data validations (like checkboxes from Column 3)
      var maxRows = publicSheet.getMaxRows();
      if (maxRows > 1) {
-         publicSheet.getRange(2, 4, maxRows - 1, 2).clearDataValidations();
+         var wipeRange = publicSheet.getRange(2, 4, maxRows - 1, 2);
+         wipeRange.clearDataValidations();
+         wipeRange.clearContent();
      }
      
      // Populate Data
@@ -381,8 +383,9 @@ var SheetService = (function() {
          
          if (playerRes) {
              var rIdx = r + 1;
-             // Set Lottery Status
-             publicSheet.getRange(rIdx, 4).setValue(playerRes.displayStatus);
+             // Set Lottery Status as a single-item dropdown so it renders as a chip
+             var statusRule = SpreadsheetApp.newDataValidation().requireValueInList([playerRes.displayStatus]).setAllowInvalid(true).build();
+             publicSheet.getRange(rIdx, 4).setValue(playerRes.displayStatus).setDataValidation(statusRule);
              
              // Set Player Action Dropdown if Selected
              if (playerRes.displayStatus === 'Selected') {
@@ -391,9 +394,21 @@ var SheetService = (function() {
          }
      }
      
+     var pmr = publicSheet.getMaxRows();
+     
+     // Add Conditional Formatting for colored chips formatting
+     var range4 = publicSheet.getRange(2, 4, pmr > 1 ? pmr - 1 : 1, 1);
+     var range5 = publicSheet.getRange(2, 5, pmr > 1 ? pmr - 1 : 1, 1);
+     var rules = publicSheet.getConditionalFormatRules();
+     rules.push(SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('Accept').setBackground('#d9ead3').setFontColor('#274e13').setRanges([range5]).build());
+     rules.push(SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('Selected').setBackground('#d9ead3').setFontColor('#274e13').setRanges([range4]).build());
+     rules.push(SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('Pending').setBackground('#fff2cc').setFontColor('#7f6000').setRanges([range5]).build());
+     rules.push(SpreadsheetApp.newConditionalFormatRule().whenTextEqualTo('Decline').setBackground('#f4cccc').setFontColor('#990000').setRanges([range5]).build());
+     rules.push(SpreadsheetApp.newConditionalFormatRule().whenTextStartsWith('Waitlist').setBackground('#fce5cd').setFontColor('#b45f06').setRanges([range4]).build());
+     publicSheet.setConditionalFormatRules(rules);
+     
      // Protect Lottery Status column so users can't edit it
      // Plus safeguard the original columns 1, 2, 3 so players don't edit names? Wait, the plan only specifies protecting Lottery Status
-     var pmr = publicSheet.getMaxRows();
      var protection = publicSheet.getRange(2, 4, pmr > 1 ? pmr - 1 : 1, 1).protect();
      protection.setDescription('Protect Lottery Status');
      protection.setWarningOnly(false);
@@ -425,6 +440,10 @@ var SheetService = (function() {
      // or just construct the identical shape.
      var slotKeys = Object.keys(CONFIG.SLOTS);
      slotKeys.forEach(function(k) { historyResults[k] = []; });
+     
+     // We will store the players who "Accepted" for each slot, in order
+     var acceptedPlayersBySlot = {};
+     slotKeys.forEach(function(k) { acceptedPlayersBySlot[k] = []; });
      
      var currentSlotKey = null;
      
@@ -460,7 +479,17 @@ var SheetService = (function() {
          
          // Log for history
          var finalHistStatus = 'Waitlist';
-         if (action === 'Accept') finalHistStatus = 'Selected';
+         if (action === 'Accept') {
+             finalHistStatus = 'Selected';
+             if (currentSlotKey) {
+                 acceptedPlayersBySlot[currentSlotKey].push({
+                     name: name,
+                     email: email,
+                     paired: row[2], // Pair With Previous (Column C)
+                     rowArr: row     // Complete underlying row data
+                 });
+             }
+         }
          else if (action === 'Decline') finalHistStatus = 'Declined';
          
          if (currentSlotKey) {
@@ -477,57 +506,88 @@ var SheetService = (function() {
          }
      }
      
-     // Pass 2: Iterate backwards to delete rows that are Waitlist or Decline, and trim blank spaces
+     // Pass 2: Rewrite each slot section
      // We process slot by slot backwards to avoid shifting row issues.
      var startRows = [];
-     var currentR = 2;
+     var currentR = 2; // Data starts at row 2
      slotKeys.forEach(function(k) {
          startRows.push({ key: k, start: currentR, count: CONFIG.SLOTS[k].maxSignups });
          currentR += CONFIG.SLOTS[k].maxSignups;
      });
      
-     for (var i = startRows.length - 1; i >= 0; i--) {
+     // To safely rewrite without dealing with complex row deletion math, 
+     // we will completely overwrite the values and formats for each slot's block.
+     for (var i = 0; i < startRows.length; i++) {
         var slotBlock = startRows[i];
-        var sEnd = slotBlock.start + slotBlock.count - 1;
-        var sStart = slotBlock.start;
-        var remainingAfterDeletes = slotBlock.count;
+        var accepted = acceptedPlayersBySlot[slotBlock.key];
         
-        // Go bottom-up within the slot block
-        for (var rowIdx = sEnd; rowIdx >= sStart; rowIdx--) {
-            // Values are 0-indexed, rows are 1-indexed
-            // We must refetch data row dynamically or rely on original indices?
-            // Deleting rows shifts everything below it. Since we do bottom-up across the whole sheet,
-            // the rowIdx corresponds correctly to the current sheet state.
-            var sheetNameVal = publicSheet.getRange(rowIdx, 1).getValue();
-            var sheetAction =  publicSheet.getRange(rowIdx, 5).getValue();
-            var sheetLotStat = publicSheet.getRange(rowIdx, 4).getValue();
-            
-            var shouldDelete = false;
-            if (sheetNameVal !== '' && sheetNameVal !== 'Available') {
-                if (sheetAction === 'Decline' || (sheetLotStat && sheetLotStat.toString().indexOf('Waitlist') === 0)) {
-                    shouldDelete = true;
-                }
-            } else if (remainingAfterDeletes > 12) {
-                // It's an empty row ("Available" or blank), and we have too many
-                shouldDelete = true;
-            }
-            
-            if (shouldDelete) {
-                publicSheet.deleteRow(rowIdx);
-                remainingAfterDeletes--;
-            }
+        // Let's cap the final row count to 12
+        var finalRowCount = 12;
+        var rStart = slotBlock.start;
+        var rEndOrig = rStart + slotBlock.count - 1; // e.g. Row 2 to Row 21 (20 max signups)
+        var colsTotal = publicSheet.getLastColumn();
+        
+        // Blank out the entire original slot area first (Name, Email, Pair, TimeSlot(keep), Lottery, Action... plus dates)
+        // We actually only need to clear columns 1-3, 4, 5 and dates. We will rewrite them.
+        for (var r = rStart; r <= rEndOrig; r++) {
+             // We keep Time Slot (Column 6) as is, if it's there? Wait, the template has Time Slot in Col 6.
+             // It's safer to just overwrite the values of the rows we KEEP, and DELETE the excess rows.
         }
      }
      
-     // Remove Data Validation
-     publicSheet.getRange(2, 5, publicSheet.getMaxRows(), 1).clearDataValidations();
+     // Delete excess rows bottom-up
+     for (var i = startRows.length - 1; i >= 0; i--) {
+        var slotBlock = startRows[i];
+        var rStart = slotBlock.start;
+        var rEndOrig = rStart + slotBlock.count - 1;
+        
+        // Delete rows from bottom of slot up to finalRowCount
+        // e.g. if max=20, final=12, delete rows rStart+12 to rEndOrig
+        var rowsToDelete = slotBlock.count - 12;
+        if (rowsToDelete > 0) {
+            // Because we delete bottom-up, we don't mess up the start rows of earlier slots
+            publicSheet.deleteRows(rStart + 12, rowsToDelete);
+        }
+     }
+     
+     // Now that the sheet has exactly 12 rows per slot, we can safely overwrite the data top-down
+     currentR = 2;
+     for (var i = 0; i < startRows.length; i++) {
+        var slotBlock = startRows[i];
+        var accepted = acceptedPlayersBySlot[slotBlock.key];
+        var templateColor = CONFIG.COLORS.SLOT_BG[i % CONFIG.COLORS.SLOT_BG.length];
+        
+        for (var rowOffset = 0; rowOffset < 12; rowOffset++) {
+            var targetRow = currentR + rowOffset;
+            
+            if (rowOffset < accepted.length) {
+                // Populate accepted player
+                var p = accepted[rowOffset];
+                publicSheet.getRange(targetRow, 1).setValue(p.name).setBackground(templateColor); // Name
+                publicSheet.getRange(targetRow, 2).setValue(p.email); // Email
+                if (p.paired) publicSheet.getRange(targetRow, 3).check(); else publicSheet.getRange(targetRow, 3).uncheck();
+                
+                // Keep the date column values if they had them (we won't overwrite cols 7+)
+            } else {
+                // Populate Available
+                publicSheet.getRange(targetRow, 1).setValue('Available').setBackground(CONFIG.COLORS.AVAILABLE);
+                publicSheet.getRange(targetRow, 2).clearContent(); // Email
+                publicSheet.getRange(targetRow, 3).uncheck(); // Pair
+                
+                // Clear dates
+                if (colsTotal > 6) {
+                    publicSheet.getRange(targetRow, 7, 1, colsTotal - 6).clearContent();
+                }
+            }
+        }
+        currentR += 12;
+     }
+     
+     // Delete Lottery Status and Player Action columns entirely
+     publicSheet.deleteColumns(4, 2);
      
      // Rename Sheet
      publicSheet.setName(monthName);
-     
-     // Protect entire sheet
-     var sheetProtection = publicSheet.protect().setDescription('Finalized Month');
-     sheetProtection.setWarningOnly(false);
 
      // We also trigger updateHistory
      updateHistoryFinalized(monthName, historyResults);
