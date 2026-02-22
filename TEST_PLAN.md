@@ -16,10 +16,9 @@ The application relies entirely on manual testing workflows within the Google Sh
    - **Verification:** An error alert should pop up immediately telling you "Duplicate Signup Detected" and preventing the second entry.
 
 ### Step 3: Test Real Data Simulation
-1. Rather than typing out 60 fake signups manually, switch to the **Developer Tools** tab in your sidebar.
-2. Select the "April 2026_Signup" sheet from the dropdown menu.
-3. Click **"Generate Test Data"**. 
-   - **Verification:** Look at your "April 2026_Signup" tab in the Google Sheet. It should instantly populate with dozens of fake names and partner requests. Ensure the generated names follow the A, B, C realistic name format (e.g. Alice_1) and do not repeat within a given time slot.
+1. Rather than typing out 60 fake signups manually, ensure "April 2026" is still selected in the **Select Month** dropdown in your sidebar.
+2. Click the secondary **"Create Test Data"** button.
+3. Look at your "April 2026_Signup" tab in the Google Sheet. It should instantly populate with dozens of fake names and partner requests. Ensure the generated names follow the A, B, C realistic name format (e.g. Alice_1) and do not repeat within a given time slot.
 
 ### Step 4: Test the Lottery Logic
 1. Switch to the **Lottery Controls** tab.

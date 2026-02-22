@@ -14,9 +14,16 @@ var TestService = (function() {
          ss = SpreadsheetApp.openById(CONFIG.PUBLIC_SHEET_ID);
        }
 
-      var sheet = ss.getSheetByName(monthName);
+      var sheetName = monthName + '_Signup';
+      var sheet = ss.getSheetByName(sheetName);
+      
+      // Fallback to regular monthName if Signup Doesn't exist (e.g. older months)
       if (!sheet) {
-        throw new Error('Sheet ' + monthName + ' not found. Please create it first.');
+        sheet = ss.getSheetByName(monthName);
+      }
+
+      if (!sheet) {
+        throw new Error('Sheet ' + sheetName + ' not found. Please create it first.');
       }
 
       var data = sheet.getDataRange().getValues();
@@ -64,14 +71,21 @@ var TestService = (function() {
         // Randomly decide how many spots to fill
         var fillCount;
         if (slotConf.count === 20) {
-           // For 20 slots, equal frequency between 8 and 20
-           fillCount = Math.floor(Math.random() * (20 - 8 + 1)) + 8;
+           // For 20 slots, equal frequency between 10 and 20
+           fillCount = Math.floor(Math.random() * (20 - 10 + 1)) + 10;
         } else {
            // For others, 50% to 100%, assuming 12 max
            fillCount = Math.floor(slotConf.count * (0.5 + Math.random() * 0.5));
         } 
         
         for (var i = 0; i < slotConf.count; i++) {
+          var currentNameCell = sheet.getRange(currentRow + i, 1).getValue();
+          
+          // If the cell already has a manual signup (not empty and not 'Available'), skip changing it
+          if (currentNameCell && currentNameCell !== '' && currentNameCell !== 'Available') {
+              continue;
+          }
+
           if (i < fillCount) {
              var letter = letters[i % letters.length];
              var nameList = namesByLetter[letter];
