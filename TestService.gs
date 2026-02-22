@@ -14,7 +14,7 @@ var TestService = (function() {
          ss = SpreadsheetApp.openById(CONFIG.PUBLIC_SHEET_ID);
        }
 
-      var sheetName = monthName + '_Signup';
+      var sheetName = monthName + ' Signup';
       var sheet = ss.getSheetByName(sheetName);
       
       // Fallback to regular monthName if Signup Doesn't exist (e.g. older months)

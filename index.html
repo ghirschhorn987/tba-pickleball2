@@ -107,7 +107,7 @@
 
   <div class="control-group">
     <label for="monthSelect">Select Month</label>
-    <select id="monthSelect"></select>
+    <select id="monthSelect" onchange="updateWeeksDropdown()"></select>
 
     <button onclick="createMonth()">Create Month</button>
     <button class="secondary" onclick="createTestData()">Create Test Data</button>
@@ -119,6 +119,12 @@
     <button onclick="runLottery()">Run Lottery</button>
     <button onclick="publishResults()">Publish Results</button>
     <button onclick="finalizeMonth()">Finalize Month</button>
+  </div>
+
+  <div class="control-group">
+    <label for="weekSelect">Cancel Week</label>
+    <select id="weekSelect"></select>
+    <button class="danger" onclick="cancelSelectedWeek()">Lock & Cancel Week</button>
   </div>
 
   <div id="status"></div>
@@ -140,6 +146,8 @@
         opt.innerHTML = monthName;
         select.appendChild(opt);
       }
+
+      updateWeeksDropdown();
     })();
 
     function getSelectedMonth() {
@@ -218,6 +226,48 @@
         .withSuccessHandler(function (res) { showStatus(res, 'success'); })
         .withFailureHandler(function (err) { showStatus(err.message, 'error'); })
         .finalizeMonth(m);
+    }
+
+    function updateWeeksDropdown() {
+      var m = getSelectedMonth();
+      var select = document.getElementById('weekSelect');
+      select.innerHTML = '<option>Loading...</option>';
+      select.disabled = true;
+      google.script.run
+        .withSuccessHandler(function (weeks) {
+          select.innerHTML = '';
+          if (!weeks || weeks.length === 0) {
+            select.innerHTML = '<option>No weeks found</option>';
+          } else {
+            weeks.forEach(function (w) {
+              var opt = document.createElement('option');
+              opt.value = w;
+              opt.innerHTML = w;
+              select.appendChild(opt);
+            });
+            select.disabled = false;
+          }
+        })
+        .withFailureHandler(function (err) {
+          select.innerHTML = '<option>Error loading weeks</option>';
+          showStatus(err.message, 'error');
+        })
+        .getWeeksForMonth(m);
+    }
+
+    function cancelSelectedWeek() {
+      var m = getSelectedMonth();
+      var w = document.getElementById('weekSelect').value;
+      if (!w || w.includes('No weeks') || w.includes('Loading') || w.includes('Error')) {
+        alert('Please select a valid week to cancel.');
+        return;
+      }
+      if (!confirm('Are you sure you want to cancel the week of ' + w + '?')) return;
+      showStatus('Cancelling week ' + w + '...', 'info', true);
+      google.script.run
+        .withSuccessHandler(function (res) { showStatus(res, 'success'); updateWeeksDropdown(); })
+        .withFailureHandler(function (err) { showStatus(err.message, 'error'); })
+        .cancelSelectedWeek(m, w);
     }
 
   </script>

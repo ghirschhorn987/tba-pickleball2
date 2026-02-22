@@ -356,12 +356,18 @@ var SheetService = (function() {
      publicSheet.setColumnWidth(4, cWidths[4]);
      publicSheet.setColumnWidth(5, cWidths[5]);
      
+     // Clear any inherited data validations (like checkboxes from Column 3)
+     var maxRows = publicSheet.getMaxRows();
+     if (maxRows > 1) {
+         publicSheet.getRange(2, 4, maxRows - 1, 2).clearDataValidations();
+     }
+     
      // Populate Data
      var dataRange = publicSheet.getDataRange();
      var data = dataRange.getValues();
      
      // Setup Data Validation for Player Action
-     var actionRule = SpreadsheetApp.newDataValidation().requireValueInList(['Pending', 'Accept', 'Decline']).build();
+     var actionRule = SpreadsheetApp.newDataValidation().requireValueInList(['Pending', 'Accept', 'Decline']).setAllowInvalid(false).build();
      
      for (var r = 1; r < data.length; r++) {
          var row = data[r];
@@ -387,9 +393,18 @@ var SheetService = (function() {
      
      // Protect Lottery Status column so users can't edit it
      // Plus safeguard the original columns 1, 2, 3 so players don't edit names? Wait, the plan only specifies protecting Lottery Status
-     var protection = publicSheet.getRange(2, 4, publicSheet.getMaxRows(), 1).protect();
+     var pmr = publicSheet.getMaxRows();
+     var protection = publicSheet.getRange(2, 4, pmr > 1 ? pmr - 1 : 1, 1).protect();
      protection.setDescription('Protect Lottery Status');
      protection.setWarningOnly(false);
+     
+     // Strictly remove all other editors to ensure a hard lock for the public.
+     var me = Session.getEffectiveUser();
+     protection.addEditor(me);
+     protection.removeEditors(protection.getEditors());
+     if (protection.canDomainEdit()) {
+       protection.setDomainEdit(false);
+     }
   }
 
   /**
@@ -564,22 +579,68 @@ var SheetService = (function() {
   }
 
   /**
+   * Gets available date columns for cancellation.
+   */
+  function getWeeksForMonth(monthName) {
+     var publicSs = _getSpreadsheet(CONFIG.PUBLIC_SHEET_ID);
+     var sheet = publicSs.getSheetByName(monthName + ' Signup') || publicSs.getSheetByName(monthName);
+     if (!sheet) throw new Error("Could not find sheet for " + monthName);
+     
+     var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+     var weeks = [];
+     var timeSlotIdx = headers.indexOf('Time Slot');
+     
+     // Dates are safely located after Time Slot in all standard configurations
+     var startIdx = timeSlotIdx !== -1 ? timeSlotIdx + 1 : 4; 
+     for (var i = startIdx; i < headers.length; i++) {
+         if (headers[i] && headers[i].toString().trim() !== '') {
+             weeks.push(headers[i].toString());
+         }
+     }
+     return weeks;
+  }
+
+  /**
    * Helper to format a specific Sunday column as Cancelled
    */
-  function cancelWeek(monthName, colIndex) {
+  function cancelWeek(monthName, headerName) {
      var publicSs = _getSpreadsheet(CONFIG.PUBLIC_SHEET_ID);
-     var sheet = publicSs.getSheetByName(monthName);
-     if (!sheet) throw new Error("Could not find finalized sheet for " + monthName);
+     var sheet = publicSs.getSheetByName(monthName + ' Signup') || publicSs.getSheetByName(monthName);
+     if (!sheet) throw new Error("Could not find sheet for " + monthName);
      
-     // Format header to indicate cancellation
-     sheet.getRange(1, colIndex).setValue(sheet.getRange(1, colIndex).getValue() + " (CANCELLED)");
+     var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+     var colIndex = -1;
+     for (var i = 0; i < headers.length; i++) {
+         if (headers[i] && headers[i].toString() === headerName) colIndex = i + 1;
+     }
+     if (colIndex === -1) throw new Error("Could not find week column for " + headerName);
      
      // Color it red/gray block
      var range = sheet.getRange(1, colIndex, sheet.getMaxRows(), 1);
      range.setBackground('#ffcccc'); // Red-ish tint
      
+     // Populate "Cancelled" for all signups in this column
+     var maxRows = sheet.getLastRow();
+     if (maxRows > 1) {
+         var dataRange = sheet.getRange(2, colIndex, maxRows - 1, 1);
+         var vals = dataRange.getValues();
+         for (var r = 0; r < vals.length; r++) {
+             vals[r][0] = 'Cancelled';
+         }
+         dataRange.setValues(vals);
+     }
+     
      // Protect it
      var prot = range.protect().setDescription('Cancelled Week');
+     
+     // Strictly remove all other editors to ensure a hard lock for the public.
+     // (Note: The owner of the spreadsheet will mathematically always bypass soft/hard locks)
+     var me = Session.getEffectiveUser();
+     prot.addEditor(me);
+     prot.removeEditors(prot.getEditors());
+     if (prot.canDomainEdit()) {
+       prot.setDomainEdit(false);
+     }
      prot.setWarningOnly(false);
   }
 
@@ -590,6 +651,7 @@ var SheetService = (function() {
     updateHistory: updateHistoryFinalized, // Keeping legacy reference mapping just in case
     publishResults: publishResults,
     finalizeMonth: finalizeMonth,
+    getWeeksForMonth: getWeeksForMonth,
     cancelWeek: cancelWeek
   };
 

@@ -14,7 +14,6 @@ function onOpen() {
     var ui = SpreadsheetApp.getUi();
     ui.createMenu('Pickleball Menu')
         .addItem('Open Sidebar', 'showSidebar')
-        .addItem('Cancel Active Week', 'cancelWeekPrompt')
         .addToUi();
 }
 
@@ -203,27 +202,24 @@ function finalizeMonth(monthName) {
 }
 
 /**
- * Custom UI action to cancel the currently highlighted column.
+ * Gets a list of date headers for the selected month to populate the cancellation dropdown.
  */
-function cancelWeekPrompt() {
-    var sheet = SpreadsheetApp.getActiveSheet();
-    var range = sheet.getActiveRange();
-    var col = range.getColumn();
-
-    // Validate it's likely a date header by checking row 1 of the column
-    var headerVal = sheet.getRange(1, col).getValue();
-    if (!headerVal || headerVal.toString().trim() === '' || col < 5) {
-        SpreadsheetApp.getUi().alert("Please select a date column to cancel.");
-        return;
+function getWeeksForMonth(monthName) {
+    try {
+        return SheetService.getWeeksForMonth(monthName);
+    } catch (e) {
+        throw new Error(e.message);
     }
+}
 
-    var res = SpreadsheetApp.getUi().alert("Cancel Week", "Are you sure you want to cancel the week of " + headerVal + "?", SpreadsheetApp.getUi().ButtonSet.YES_NO);
-    if (res === SpreadsheetApp.getUi().Button.YES) {
-        try {
-            SheetService.cancelWeek(sheet.getName(), col);
-            SpreadsheetApp.getUi().alert("Success", "Week Cancelled and Locked.", SpreadsheetApp.getUi().ButtonSet.OK);
-        } catch (e) {
-            SpreadsheetApp.getUi().alert("Error", e.message, SpreadsheetApp.getUi().ButtonSet.OK);
-        }
+/**
+ * Custom UI action to cancel the selected week from the sidebar.
+ */
+function cancelSelectedWeek(monthName, headerName) {
+    try {
+        SheetService.cancelWeek(monthName, headerName);
+        return 'Success: Cancelled Week ' + headerName;
+    } catch (e) {
+        throw new Error(e.message);
     }
 }

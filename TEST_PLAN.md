@@ -9,16 +9,16 @@ The application relies entirely on manual testing workflows within the Google Sh
 
 ### Step 2: Test Month Creation & Duplicate Checking (Phase 4)
 1. On the "Setup Manager" tab, enter a new month (e.g., "April 2026") into the "Month to Create" box and click **"Create Month"**.
-   - **Verification:** Check the Google Sheet tabs to make sure both "April 2026" and "April 2026_Signup" have been created successfully, with identical formatting.
+   - **Verification:** Check the Google Sheet tabs to make sure both "April 2026" and "April 2026 Signup" have been created successfully, with identical formatting.
 2. Try to type "April 2026" into the box again and click **"Create Month"**.
    - **Verification:** An error alert should pop up immediately telling you the month already exists (testing the duplicate prevention feature).
-3. On the "April 2026_Signup" tab, try typing the same name manually into two different time slots.
+3. On the "April 2026 Signup" tab, try typing the same name manually into two different time slots.
    - **Verification:** An error alert should pop up immediately telling you "Duplicate Signup Detected" and preventing the second entry.
 
 ### Step 3: Test Real Data Simulation
 1. Rather than typing out 60 fake signups manually, ensure "April 2026" is still selected in the **Select Month** dropdown in your sidebar.
 2. Click the secondary **"Create Test Data"** button.
-3. Look at your "April 2026_Signup" tab in the Google Sheet. It should instantly populate with dozens of fake names and partner requests. Ensure the generated names follow the A, B, C realistic name format (e.g. Alice_1) and do not repeat within a given time slot.
+3. Look at your "April 2026 Signup" tab in the Google Sheet. It should instantly populate with dozens of fake names and partner requests. Ensure the generated names follow the A, B, C realistic name format (e.g. Alice_1) and do not repeat within a given time slot.
 
 ### Step 4: Test the Lottery Logic
 1. Ensure "April 2026" is still selected from the target month dropdown.
@@ -29,5 +29,5 @@ The application relies entirely on manual testing workflows within the Google Sh
 ### Step 5: Test the Pruning/Cleanup Logic (Phase 3)
 1. Ensure "April 2026" is still selected from the target month dropdown.
 2. Click **"Update Signup Sheet"**.
-   - **Verification:** The "April 2026_Signup" tab should be completely deleted from the Google Sheet (this prevents players from modifying their inputs after the draw is published). All the final, post-lottery data should be populated into "April 2026", overwriting the manual entries, and the remaining slots should be cleared.
+   - **Verification:** The "April 2026 Signup" tab should be completely deleted from the Google Sheet (this prevents players from modifying their inputs after the draw is published). All the final, post-lottery data should be populated into "April 2026", overwriting the manual entries, and the remaining slots should be cleared.
 - Use the Dev Tools -> Log Formatting menu to get the formatting details.
