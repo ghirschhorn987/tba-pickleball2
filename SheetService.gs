@@ -245,11 +245,76 @@ var SheetService = (function() {
      // Blank cells in Column C implies they didn't participate this month.
   }
 
+  /**
+   * Reads the Lottery tab to find "Selected" users and updates the Public Sheet
+   * to remove any non-selected players.
+   */
+  function updateSignupSheet(monthName) {
+     var adminSs = _getSpreadsheet(CONFIG.ADMIN_SHEET_ID);
+     var lotterySheet = adminSs.getSheetByName(CONFIG.LOTTERY_TAB_NAME);
+     if (!lotterySheet) throw new Error("Lottery tab not found.");
+     
+     // Parse Lottery Results
+     var lotData = lotterySheet.getDataRange().getValues();
+     var winnersBySlot = {};
+     var currentSlot = null;
+     
+     // Skip row 0 which is ['Month:', monthName]
+     for (var i = 1; i < lotData.length; i++) {
+        var row = lotData[i];
+        if (row[0] && row[0].toString().indexOf('Slot:') === 0) {
+            currentSlot = row[0].replace('Slot: ', '');
+            winnersBySlot[currentSlot] = [];
+            continue;
+        }
+        if (row[0] === 'Pos' || row[0] === '---' || !currentSlot) continue;
+        
+        // Headers: Pos, Name, Email, Reason, Status
+        var status = row[4];
+        if (status === 'Selected') {
+            var name = row[1];
+            var email = row[2];
+            winnersBySlot[currentSlot].push({name: name, email: email, pairing: false});
+            // We just set pairing back to false as they are already selected and it doesn't matter much post-lottery
+        }
+     }
+     
+     var publicSs = _getSpreadsheet(CONFIG.PUBLIC_SHEET_ID);
+     var publicSheet = publicSs.getSheetByName(monthName);
+     if (!publicSheet) throw new Error("Public sheet not found: " + monthName);
+     
+     var currentRow = 2; // Row 1 is frozen headers
+     var slotKeys = Object.keys(CONFIG.SLOTS);
+     
+     slotKeys.forEach(function(key) {
+        var slot = CONFIG.SLOTS[key];
+        var rowCount = slot.maxSignups;
+        var winners = winnersBySlot[key] || [];
+        
+        // We will overwrite the block with winners, then clear the rest
+        var targetRange = publicSheet.getRange(currentRow, 1, rowCount, 3); // Name, Email, Pair
+        var blockData = [];
+        
+        for (var j = 0; j < rowCount; j++) {
+            if (j < winners.length) {
+                var w = winners[j];
+                blockData.push([w.name, w.email, false]);
+            } else {
+                blockData.push(['', '', false]); // Clear non-winners
+            }
+        }
+        
+        targetRange.setValues(blockData);
+        currentRow += rowCount;
+     });
+  }
+
   return {
     createMonthTab: createMonthTab,
     clearMonthTab: clearMonthTab,
     getSignupData: getSignupData,
-    updateHistory: updateHistory
+    updateHistory: updateHistory,
+    updateSignupSheet: updateSignupSheet
   };
 
 })();

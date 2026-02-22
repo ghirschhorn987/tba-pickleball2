@@ -77,3 +77,15 @@ function runLottery(monthName) {
         throw new Error(e.message);
     }
 }
+
+/**
+ * Updates the signup sheet to remove non-selected players.
+ */
+function updateSignupSheet(monthName) {
+    try {
+        SheetService.updateSignupSheet(monthName);
+        return 'Success: Signup Sheet Updated for ' + monthName;
+    } catch (e) {
+        throw new Error(e.message);
+    }
+}

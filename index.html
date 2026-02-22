@@ -184,8 +184,11 @@
     }
 
     function updateSignup() {
-      showStatus('Feature not fully implemented yet.', 'error');
-      // google.script.run.updateSignup(getSelectedMonth());
+      var m = getSelectedMonth();
+      google.script.run
+        .withSuccessHandler(function (res) { showStatus(res, 'success'); })
+        .withFailureHandler(function (err) { showStatus(err.message, 'error'); })
+        .updateSignupSheet(m);
     }
 
   </script>
