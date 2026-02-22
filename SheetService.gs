@@ -27,15 +27,14 @@ var SheetService = (function() {
   function createMonthTab(monthName) {
     var ss = _getSpreadsheet(CONFIG.PUBLIC_SHEET_ID);
     
+    var tabName = monthName + ' Signup';
     // Check if exists
-    if (ss.getSheetByName(monthName) || ss.getSheetByName(monthName + '_Signup')) {
+    if (ss.getSheetByName(monthName) || ss.getSheetByName(tabName)) {
       throw new Error('Sheets for ' + monthName + ' already exist.');
     }
 
-    // Create the Main display sheet
-    var sheet = ss.insertSheet(monthName);
     // Create the active Signup sheet
-    var signupSheet = ss.insertSheet(monthName + '_Signup');
+    var signupSheet = ss.insertSheet(tabName);
     
     // Calculate Sundays
     var sundays = _getSundaysInMonth(monthName);
@@ -49,10 +48,24 @@ var SheetService = (function() {
     });
     
     // Freeze top row
-    sheet.setFrozenRows(1);
+    signupSheet.setFrozenRows(1);
 
     var currentRow = 1;
-    sheet.getRange(currentRow, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
+    var headerRange = signupSheet.getRange(currentRow, 1, 1, headers.length);
+    headerRange.setValues([headers]);
+    
+    // Apply Template Formatting to Headers
+    var tFmt = CONFIG.TEMPLATE_FORMATTING.headerRow;
+    headerRange.setFontFamily(tFmt.fontFamily)
+               .setFontSize(tFmt.fontSize)
+               .setFontWeight(tFmt.fontWeight)
+               .setFontStyle(tFmt.fontStyle)
+               .setFontColor(tFmt.fontColor)
+               .setBackground(tFmt.background)
+               .setHorizontalAlignment(tFmt.horizontalAlignment)
+               .setVerticalAlignment(tFmt.verticalAlignment)
+               .setWrapStrategy(tFmt.wrapText ? SpreadsheetApp.WrapStrategy.WRAP : SpreadsheetApp.WrapStrategy.OVERFLOW);
+               
     currentRow++;
 
     // Prepare Slot Data
@@ -67,17 +80,17 @@ var SheetService = (function() {
       var endRow = currentRow + rowCount - 1;
       
       // Set Slot Name column (Column 4 is Time Slot)
-      sheet.getRange(startRow, 4, rowCount, 1).setValue(slot.name);
+      signupSheet.getRange(startRow, 4, rowCount, 1).setValue(slot.name);
       
       // Set Formatting (Color)
       var color = CONFIG.COLORS.SLOT_BG[colorIndex % CONFIG.COLORS.SLOT_BG.length];
-      sheet.getRange(startRow, 1, rowCount, headers.length).setBackground(color);
+      signupSheet.getRange(startRow, 1, rowCount, headers.length).setBackground(color);
       
       // Border for separation
-      sheet.getRange(endRow, 1, 1, headers.length).setBorder(null, null, true, null, null, null, CONFIG.COLORS.BORDER, SpreadsheetApp.BorderStyle.SOLID_THICK);
+      signupSheet.getRange(endRow, 1, 1, headers.length).setBorder(null, null, true, null, null, null, CONFIG.COLORS.BORDER, SpreadsheetApp.BorderStyle.SOLID_THICK);
 
       // Add Checkbox for Pairing (Column 3)
-      var checkboxRange = sheet.getRange(startRow, 3, rowCount, 1);
+      var checkboxRange = signupSheet.getRange(startRow, 3, rowCount, 1);
       checkboxRange.insertCheckboxes();
 
       currentRow += rowCount;
@@ -85,45 +98,28 @@ var SheetService = (function() {
     });
     
     // Set Column Widths
-    // Name (1) and Sundays (5+) -> Wide enough for "Michael Longishlastname" (~200px)
-    // Email (2) -> 1.5x wider (~300px)
-    // Pair (3) -> Standard
-    // Slot (4) -> Standard
-    
-    sheet.setColumnWidth(1, 200); 
-    sheet.setColumnWidth(2, 300);
-    // Columns 5 onwards are Sundays
+    // Set Column Widths based on Template Formatting
+    var cWidths = CONFIG.TEMPLATE_FORMATTING.columnWidths;
+    signupSheet.setColumnWidth(1, cWidths[1]); 
+    signupSheet.setColumnWidth(2, cWidths[2]);
+    signupSheet.setColumnWidth(3, cWidths[3]);
+    signupSheet.setColumnWidth(4, cWidths[6]); // Time Slot is currently Column 4, but let's use cWidths[6] for time slot because 4,5 are reserved for Lottery/Action in publish
+
     if (headers.length > 4) {
-      sheet.setColumnWidths(5, headers.length - 4, 200);   
+      signupSheet.setColumnWidths(5, headers.length - 4, cWidths.defaultDateWidth);   
     }
 
     // Apply Conditional Formatting for "Available" (Yellow)
-    var rangeToFormat = sheet.getRange(2, 1, currentRow - 2, 1); // Only Column A names
+    var rangeToFormat = signupSheet.getRange(2, 1, currentRow - 2, 1); // Only Column A names
     var ruleAvailable = SpreadsheetApp.newConditionalFormatRule()
       .whenTextEqualTo('Available')
       .setBackground(CONFIG.COLORS.AVAILABLE)
       .setRanges([rangeToFormat])
       .build();
       
-    var rules = sheet.getConditionalFormatRules();
+    var rules = signupSheet.getConditionalFormatRules();
     rules.push(ruleAvailable);
-    sheet.setConditionalFormatRules(rules);
-
-    // EXACT same formatting for the Signup sheet
-    signupSheet.setFrozenRows(1);
-    signupSheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
-    
-    // Copy the entire formatted range from the Main sheet to the Signup sheet
-    var sourceRange = sheet.getRange(2, 1, currentRow - 2, headers.length);
-    var targetRange = signupSheet.getRange(2, 1, currentRow - 2, headers.length);
-    sourceRange.copyTo(targetRange); // Copy values, formats, data validations, everything
-    
-    // Set matching column widths on Signup Sheet
-    signupSheet.setColumnWidth(1, 200); 
-    signupSheet.setColumnWidth(2, 300);
-    if (headers.length > 4) {
-      signupSheet.setColumnWidths(5, headers.length - 4, 200);   
-    }
+    signupSheet.setConditionalFormatRules(rules);
   }
 
   /**
@@ -174,12 +170,12 @@ var SheetService = (function() {
   function clearMonthTab(monthName) {
     var ss = _getSpreadsheet(CONFIG.PUBLIC_SHEET_ID);
     
-    // Delete main sheet
+    // Delete main sheet if it reached finalized state
     var sheet = ss.getSheetByName(monthName);
     if (sheet) ss.deleteSheet(sheet);
     
     // Delete signup sheet
-    var signupSheet = ss.getSheetByName(monthName + '_Signup');
+    var signupSheet = ss.getSheetByName(monthName + ' Signup');
     if (signupSheet) ss.deleteSheet(signupSheet);
   }
   
@@ -188,8 +184,7 @@ var SheetService = (function() {
    */
   function getSignupData(monthName) {
     var ss = _getSpreadsheet(CONFIG.PUBLIC_SHEET_ID);
-    // Lottery reads from the _Signup sheet!
-    var sheet = ss.getSheetByName(monthName + '_Signup'); 
+    var sheet = ss.getSheetByName(monthName + ' Signup'); 
     
     // If the Signup sheet is missing, fallback to main sheet (in case it was already finalized)
     if (!sheet) {
@@ -197,7 +192,7 @@ var SheetService = (function() {
     }
 
     if (!sheet) {
-      throw new Error('Signup Sheet ' + monthName + '_Signup not found.');
+      throw new Error('Signup Sheet ' + monthName + ' Signup not found.');
     }
     
     var data = sheet.getDataRange().getValues();
@@ -288,81 +283,314 @@ var SheetService = (function() {
   }
 
   /**
-   * Reads the Lottery tab to find "Selected" users and updates the Public Sheet
-   * to remove any non-selected players.
+   * Reads Lottery results from Admin sheet and publishes them to the Signup sheet.
    */
-  function updateSignupSheet(monthName) {
+  function publishResults(monthName) {
      var adminSs = _getSpreadsheet(CONFIG.ADMIN_SHEET_ID);
      var lotterySheet = adminSs.getSheetByName(CONFIG.LOTTERY_TAB_NAME);
      if (!lotterySheet) throw new Error("Lottery tab not found.");
      
-     // Parse Lottery Results
      var lotData = lotterySheet.getDataRange().getValues();
-     var winnersBySlot = {};
-     var currentSlot = null;
+     var statusMap = {}; // Key: email or name -> Status
      
-     // Skip row 0 which is ['Month:', monthName]
+     var currentSlot = null;
      for (var i = 1; i < lotData.length; i++) {
         var row = lotData[i];
         if (row[0] && row[0].toString().indexOf('Slot:') === 0) {
             currentSlot = row[0].replace('Slot: ', '');
-            winnersBySlot[currentSlot] = [];
             continue;
         }
         if (row[0] === 'Pos' || row[0] === '---' || !currentSlot) continue;
         
-        // Headers: Pos, Name, Email, Reason, Status
+        var name = row[1];
+        var email = row[2];
         var status = row[4];
-        if (status === 'Selected') {
-            var name = row[1];
-            var email = row[2];
-            winnersBySlot[currentSlot].push({name: name, email: email, pairing: false});
-            // We just set pairing back to false as they are already selected and it doesn't matter much post-lottery
-        }
+        var key = (email && email !== '') ? email.toLowerCase() : name.toLowerCase();
+        
+        // Include position in Waitlist if waitlisted (Waitlist #1, Waitlist #2 etc)
+        // Since players are ranked in sequence per slot, we can calculate waitlist pos
+        statusMap[key] = { status: status, pos: row[0] };
      }
      
-     var publicSs = _getSpreadsheet(CONFIG.PUBLIC_SHEET_ID);
-     var publicSheet = publicSs.getSheetByName(monthName);
-     if (!publicSheet) throw new Error("Public sheet not found: " + monthName);
-     
-     var currentRow = 2; // Row 1 is frozen headers
-     var slotKeys = Object.keys(CONFIG.SLOTS);
-     
-     slotKeys.forEach(function(key) {
-        var slot = CONFIG.SLOTS[key];
-        var rowCount = slot.maxSignups;
-        var winners = winnersBySlot[key] || [];
-        
-        // We will overwrite the block with winners, then clear the rest
-        var targetRange = publicSheet.getRange(currentRow, 1, rowCount, 3); // Name, Email, Pair
-        var blockData = [];
-        
-        for (var j = 0; j < rowCount; j++) {
-            if (j < winners.length) {
-                var w = winners[j];
-                blockData.push([w.name, w.email, false]);
-            } else {
-                blockData.push(['', '', false]); // Clear non-winners
-            }
-        }
-        
-        targetRange.setValues(blockData);
-        currentRow += rowCount;
+     // Recalculate Waitlist # numbers based on their overall position inside the slot
+     var waitlistCounts = {};
+     Object.keys(statusMap).forEach(function(k) {
+         if (statusMap[k].status !== 'Selected') {
+             var slotMax = CONFIG.SLOTS[currentSlot] ? CONFIG.SLOTS[currentSlot].winners : 12; // Fallback
+             // A better way is just sequential numbering since lottery already ordered them
+         }
      });
      
-     // FINALIZE: Delete the _Signup tab so players can no longer edit values
-     var signupSheet = publicSs.getSheetByName(monthName + '_Signup');
-     if (signupSheet) {
-         publicSs.deleteSheet(signupSheet);
+     // A cleaner waitlist numbering:
+     var waitlistIndex = 1;
+     var currentWaitlistSlot = null;
+     for (var i = 1; i < lotData.length; i++) {
+        var row = lotData[i];
+        if (row[0] && row[0].toString().indexOf('Slot:') === 0) {
+            currentWaitlistSlot = row[0].replace('Slot: ', '');
+            waitlistIndex = 1;
+            continue;
+        }
+        if (row[0] === 'Pos' || row[0] === '---' || !currentWaitlistSlot) continue;
+        if (row[4] !== 'Selected') {
+            var key = (row[2] && row[2] !== '') ? row[2].toLowerCase() : row[1].toLowerCase();
+            statusMap[key].displayStatus = 'Waitlist #' + waitlistIndex;
+            waitlistIndex++;
+        } else {
+            var key = (row[2] && row[2] !== '') ? row[2].toLowerCase() : row[1].toLowerCase();
+            statusMap[key].displayStatus = 'Selected';
+        }
      }
+
+     var publicSs = _getSpreadsheet(CONFIG.PUBLIC_SHEET_ID);
+     var publicSheet = publicSs.getSheetByName(monthName + ' Signup');
+     if (!publicSheet) throw new Error("Public sheet not found: " + monthName + " Signup");
+     
+     // Insert Columns for Lottery Status (4) and Player Action (5)
+     publicSheet.insertColumnsAfter(3, 2);
+     publicSheet.getRange(1, 4).setValue("Lottery Status").setFontWeight('bold');
+     publicSheet.getRange(1, 5).setValue("Player Action").setFontWeight('bold');
+     
+     // Apply Widths
+     var cWidths = CONFIG.TEMPLATE_FORMATTING.columnWidths;
+     publicSheet.setColumnWidth(4, cWidths[4]);
+     publicSheet.setColumnWidth(5, cWidths[5]);
+     
+     // Populate Data
+     var dataRange = publicSheet.getDataRange();
+     var data = dataRange.getValues();
+     
+     // Setup Data Validation for Player Action
+     var actionRule = SpreadsheetApp.newDataValidation().requireValueInList(['Pending', 'Accept', 'Decline']).build();
+     
+     for (var r = 1; r < data.length; r++) {
+         var row = data[r];
+         var name = row[0];
+         var email = row[1];
+         // Skip empty rows and section headers
+         if (!name || name === '' || name === 'Available' || name.indexOf('Slot:') === 0 || CONFIG.SLOTS[name]) continue;
+         
+         var key = (email && email !== '') ? email.toLowerCase() : name.toLowerCase();
+         var playerRes = statusMap[key];
+         
+         if (playerRes) {
+             var rIdx = r + 1;
+             // Set Lottery Status
+             publicSheet.getRange(rIdx, 4).setValue(playerRes.displayStatus);
+             
+             // Set Player Action Dropdown if Selected
+             if (playerRes.displayStatus === 'Selected') {
+                 publicSheet.getRange(rIdx, 5).setValue('Pending').setDataValidation(actionRule);
+             }
+         }
+     }
+     
+     // Protect Lottery Status column so users can't edit it
+     // Plus safeguard the original columns 1, 2, 3 so players don't edit names? Wait, the plan only specifies protecting Lottery Status
+     var protection = publicSheet.getRange(2, 4, publicSheet.getMaxRows(), 1).protect();
+     protection.setDescription('Protect Lottery Status');
+     protection.setWarningOnly(false);
+  }
+
+  /**
+   * Finalizes the month: Converts Pending->Decline, updates history, cleans up rows, locks sheet.
+   */
+  function finalizeMonth(monthName) {
+     var publicSs = _getSpreadsheet(CONFIG.PUBLIC_SHEET_ID);
+     var publicSheet = publicSs.getSheetByName(monthName + ' Signup');
+     if (!publicSheet) throw new Error("Public sheet not found: " + monthName + " Signup");
+     
+     var dataRange = publicSheet.getDataRange();
+     var data = dataRange.getValues();
+     
+     var historyResults = {}; 
+     // Reconstruct a map similar to what updateHistory expects (it expects resultsBySlot format)
+     // Actually, updateHistory expects { "8:30": [ {name, email, status}, ... ] }
+     // We will build a unified array format and slightly patch updateHistory locally if needed,
+     // or just construct the identical shape.
+     var slotKeys = Object.keys(CONFIG.SLOTS);
+     slotKeys.forEach(function(k) { historyResults[k] = []; });
+     
+     var currentSlotKey = null;
+     
+     // Pass 1: Parse and convert Pending -> Decline, and build history
+     for (var r = 1; r < data.length; r++) {
+         var row = data[r];
+         var name = row[0];
+         var email = row[1];
+         
+         // Identify slot boundaries
+         if (name && CONFIG.SLOTS[name]) continue;
+         
+         // Figure out current slot based on row ranges?
+         // In SheetService.createMonthTab, Time Slot is in column F now (Index 5)
+         // Wait! Column Time Slot used to be 4 (Index 3). We inserted 2 columns! So it is now Column 6 (Index 5).
+         var timeSlot = row[5]; 
+         if (timeSlot && timeSlot !== '') {
+             // Find matching slot key
+             var foundKey = null;
+             slotKeys.forEach(function(k) { if(CONFIG.SLOTS[k].name === timeSlot) foundKey = k; });
+             if (foundKey) currentSlotKey = foundKey;
+         }
+         
+         if (!name || name === '' || name === 'Available') continue;
+         
+         var lotStatus = row[3]; // Column D (Index 3)
+         var action = row[4];    // Column E (Index 4)
+         
+         if (action === 'Pending') {
+             action = 'Decline';
+             publicSheet.getRange(r + 1, 5).setValue('Decline'); // Set to Decline in sheet
+         }
+         
+         // Log for history
+         var finalHistStatus = 'Waitlist';
+         if (action === 'Accept') finalHistStatus = 'Selected';
+         else if (action === 'Decline') finalHistStatus = 'Declined';
+         
+         if (currentSlotKey) {
+             historyResults[currentSlotKey].push({
+                 name: name,
+                 email: email,
+                 // We override status mapping so updateHistory works correctly.
+                 // updateHistory uses status field verbatim if we slightly patch it, wait, updateHistory computes it based on index!
+                 // Let's pass pre-calculated status via a special property or adjust updateHistory later.
+                 // Actually, wait limit: updateHistory currently ignores 'Declined' it only sets 'Selected' or Waitlist based on position!
+                 // We must update updateHistory to accept explicit statuses.
+                 explicitStatus: finalHistStatus
+             });
+         }
+     }
+     
+     // Pass 2: Iterate backwards to delete rows that are Waitlist or Decline, and trim blank spaces
+     // We process slot by slot backwards to avoid shifting row issues.
+     var startRows = [];
+     var currentR = 2;
+     slotKeys.forEach(function(k) {
+         startRows.push({ key: k, start: currentR, count: CONFIG.SLOTS[k].maxSignups });
+         currentR += CONFIG.SLOTS[k].maxSignups;
+     });
+     
+     for (var i = startRows.length - 1; i >= 0; i--) {
+        var slotBlock = startRows[i];
+        var sEnd = slotBlock.start + slotBlock.count - 1;
+        var sStart = slotBlock.start;
+        var remainingAfterDeletes = slotBlock.count;
+        
+        // Go bottom-up within the slot block
+        for (var rowIdx = sEnd; rowIdx >= sStart; rowIdx--) {
+            // Values are 0-indexed, rows are 1-indexed
+            // We must refetch data row dynamically or rely on original indices?
+            // Deleting rows shifts everything below it. Since we do bottom-up across the whole sheet,
+            // the rowIdx corresponds correctly to the current sheet state.
+            var sheetNameVal = publicSheet.getRange(rowIdx, 1).getValue();
+            var sheetAction =  publicSheet.getRange(rowIdx, 5).getValue();
+            var sheetLotStat = publicSheet.getRange(rowIdx, 4).getValue();
+            
+            var shouldDelete = false;
+            if (sheetNameVal !== '' && sheetNameVal !== 'Available') {
+                if (sheetAction === 'Decline' || (sheetLotStat && sheetLotStat.toString().indexOf('Waitlist') === 0)) {
+                    shouldDelete = true;
+                }
+            } else if (remainingAfterDeletes > 12) {
+                // It's an empty row ("Available" or blank), and we have too many
+                shouldDelete = true;
+            }
+            
+            if (shouldDelete) {
+                publicSheet.deleteRow(rowIdx);
+                remainingAfterDeletes--;
+            }
+        }
+     }
+     
+     // Remove Data Validation
+     publicSheet.getRange(2, 5, publicSheet.getMaxRows(), 1).clearDataValidations();
+     
+     // Rename Sheet
+     publicSheet.setName(monthName);
+     
+     // Protect entire sheet
+     var sheetProtection = publicSheet.protect().setDescription('Finalized Month');
+     sheetProtection.setWarningOnly(false);
+
+     // We also trigger updateHistory
+     updateHistoryFinalized(monthName, historyResults);
+  }
+
+  /**
+   * Helper specifically designed to consume the finalized history states 
+   * (Accepted->Selected, Declined/Pending->Declined, Waitlisted->Waitlist)
+   */
+  function updateHistoryFinalized(monthName, finalResultsBySlot) {
+     var ss = _getSpreadsheet(CONFIG.ADMIN_SHEET_ID);
+     var sheet = ss.getSheetByName(CONFIG.HISTORY_TAB_NAME);
+     
+     if (!sheet) {
+       sheet = ss.insertSheet(CONFIG.HISTORY_TAB_NAME);
+       sheet.appendRow(['Name', 'Email']); 
+     }
+     
+     sheet.insertColumnsAfter(2, 1);
+     sheet.getRange(1, 3).setValue(monthName).setFontWeight('bold');
+
+     var data = sheet.getDataRange().getValues();
+     var playerRowMap = {}; 
+     for (var i = 1; i < data.length; i++) {
+         var key = (data[i][1] && data[i][1] !== '') ? data[i][1].toLowerCase() : data[i][0].toLowerCase();
+         if (key) playerRowMap[key] = i + 1;
+     }
+
+     var nextAvailableRow = data.length + 1;
+
+     Object.keys(finalResultsBySlot).forEach(function(slotKey) {
+         var slotPlayers = finalResultsBySlot[slotKey];
+         slotPlayers.forEach(function(p) {
+             var key = (p.email && p.email !== '') ? p.email.toLowerCase() : p.name.toLowerCase();
+             
+             var rowToUpdate;
+             if (playerRowMap[key]) {
+                 rowToUpdate = playerRowMap[key];
+             } else {
+                 sheet.getRange(nextAvailableRow, 1).setValue(p.name);
+                 sheet.getRange(nextAvailableRow, 2).setValue(p.email);
+                 rowToUpdate = nextAvailableRow;
+                 playerRowMap[key] = nextAvailableRow;
+                 nextAvailableRow++;
+             }
+             sheet.getRange(rowToUpdate, 3).setValue(p.explicitStatus);
+         });
+     });
+  }
+
+  /**
+   * Helper to format a specific Sunday column as Cancelled
+   */
+  function cancelWeek(monthName, colIndex) {
+     var publicSs = _getSpreadsheet(CONFIG.PUBLIC_SHEET_ID);
+     var sheet = publicSs.getSheetByName(monthName);
+     if (!sheet) throw new Error("Could not find finalized sheet for " + monthName);
+     
+     // Format header to indicate cancellation
+     sheet.getRange(1, colIndex).setValue(sheet.getRange(1, colIndex).getValue() + " (CANCELLED)");
+     
+     // Color it red/gray block
+     var range = sheet.getRange(1, colIndex, sheet.getMaxRows(), 1);
+     range.setBackground('#ffcccc'); // Red-ish tint
+     
+     // Protect it
+     var prot = range.protect().setDescription('Cancelled Week');
+     prot.setWarningOnly(false);
   }
 
   return {
     createMonthTab: createMonthTab,
     clearMonthTab: clearMonthTab,
     getSignupData: getSignupData,
-    updateHistory: updateHistory,
-    updateSignupSheet: updateSignupSheet
+    updateHistory: updateHistoryFinalized, // Keeping legacy reference mapping just in case
+    publishResults: publishResults,
+    finalizeMonth: finalizeMonth,
+    cancelWeek: cancelWeek
   };
 
 })();

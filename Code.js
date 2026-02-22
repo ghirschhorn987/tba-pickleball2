@@ -14,6 +14,7 @@ function onOpen() {
     var ui = SpreadsheetApp.getUi();
     ui.createMenu('Pickleball Menu')
         .addItem('Open Sidebar', 'showSidebar')
+        .addItem('Cancel Active Week', 'cancelWeekPrompt')
         .addToUi();
 }
 
@@ -35,18 +36,17 @@ function onEdit(e) {
     var newValue = e.value;
     var oldValue = e.oldValue;
 
-    // We only care about edits in the Name column (Column 1) deeper than row 1 (headers)
-    if (col === 1 && row > 1) {
+    // We generally care about edits deeper than row 1 (headers)
+    if (row > 1) {
 
         // --- 4.1 Replacement Highlighting ---
-        // If the cell was literally the word 'Available' and is now replaced by a name, color it light blue
-        if (oldValue === 'Available' && newValue && newValue !== '' && newValue !== 'Available') {
+        if (col === 1 && oldValue === 'Available' && newValue && newValue !== '' && newValue !== 'Available') {
             range.setBackground(CONFIG.COLORS.REPLACEMENT);
         }
 
         // --- 4.2 Duplicate Validation ---
-        // Duplicate validation ONLY applies to active '_Signup' tabs
-        if (sheetName.endsWith('_Signup') && newValue && newValue !== '' && newValue !== 'Available') {
+        // Duplicate validation ONLY applies to active ' Signup' tabs
+        if (col === 1 && sheetName.endsWith(' Signup') && newValue && newValue !== '' && newValue !== 'Available') {
             var dataRange = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1);
             var names = dataRange.getValues();
             var count = 0;
@@ -58,18 +58,59 @@ function onEdit(e) {
                 }
             }
 
-            // If the name appears more than once (the one they just typed + any existing one)
             if (count > 1) {
                 SpreadsheetApp.getUi().alert(
                     "Duplicate Signup Detected",
                     "The name '" + newValue + "' is already signed up for a time slot this month. You cannot sign up multiple times.",
                     SpreadsheetApp.getUi().ButtonSet.OK
                 );
-                // Revert the cell
                 range.setValue(oldValue || '');
-                // Try to reset the background if it was an accidental overwrite of a slot
                 if (oldValue === 'Available') {
                     range.setBackground(CONFIG.COLORS.AVAILABLE);
+                }
+            }
+        }
+
+        // --- 4.3 Waitlist Bump Automation ---
+        if (col === 5 && sheetName.endsWith(' Signup') && newValue === 'Decline') {
+            // Find the active time slot block
+            var timeSlot = sheet.getRange(row, 6).getValue(); // Col 6 is Time Slot
+            if (timeSlot && timeSlot !== '') {
+                // Find all rows in this time slot
+                var allData = sheet.getDataRange().getValues(); // 0-indexed array
+                // Find the lowest waitlist number in this block
+                var lowestWaitlistNum = 9999;
+                var lowestWaitlistRowIndex = -1; // 1-indexed true sheet row
+
+                for (var r = 1; r < allData.length; r++) {
+                    var iterSlot = allData[r][5];
+                    var iterStatus = allData[r][3]; // Col 4 (Index 3)
+
+                    if (iterSlot === timeSlot && iterStatus && iterStatus.toString().indexOf('Waitlist') === 0) {
+                        // Extract number
+                        var match = iterStatus.toString().match(/Waitlist #(\d+)/);
+                        if (match && match[1]) {
+                            var num = parseInt(match[1], 10);
+                            if (num < lowestWaitlistNum) {
+                                lowestWaitlistNum = num;
+                                lowestWaitlistRowIndex = r + 1; // back to 1-indexed sheet row
+                            }
+                        }
+                    }
+                }
+
+                // If we found someone to bump
+                if (lowestWaitlistRowIndex !== -1) {
+                    var actionRule = SpreadsheetApp.newDataValidation().requireValueInList(['Pending', 'Accept', 'Decline']).build();
+
+                    sheet.getRange(lowestWaitlistRowIndex, 4).setValue('Selected');
+                    sheet.getRange(lowestWaitlistRowIndex, 5).setValue('Pending').setDataValidation(actionRule);
+
+                    SpreadsheetApp.getUi().alert(
+                        "Waitlist Automation",
+                        "Someone declined! Promoted the next waitlisted player to Selected.",
+                        SpreadsheetApp.getUi().ButtonSet.OK
+                    );
                 }
             }
         }
@@ -138,13 +179,51 @@ function runLottery(monthName) {
 }
 
 /**
- * Updates the signup sheet to remove non-selected players.
+ * Publishes the lottery results to the Signup sheet.
  */
-function updateSignupSheet(monthName) {
+function publishResults(monthName) {
     try {
-        SheetService.updateSignupSheet(monthName);
-        return 'Success: Signup Sheet Updated for ' + monthName;
+        SheetService.publishResults(monthName);
+        return 'Success: Published results for ' + monthName;
     } catch (e) {
         throw new Error(e.message);
+    }
+}
+
+/**
+ * Finalizes the month.
+ */
+function finalizeMonth(monthName) {
+    try {
+        SheetService.finalizeMonth(monthName);
+        return 'Success: Finalized ' + monthName;
+    } catch (e) {
+        throw new Error(e.message);
+    }
+}
+
+/**
+ * Custom UI action to cancel the currently highlighted column.
+ */
+function cancelWeekPrompt() {
+    var sheet = SpreadsheetApp.getActiveSheet();
+    var range = sheet.getActiveRange();
+    var col = range.getColumn();
+
+    // Validate it's likely a date header by checking row 1 of the column
+    var headerVal = sheet.getRange(1, col).getValue();
+    if (!headerVal || headerVal.toString().trim() === '' || col < 5) {
+        SpreadsheetApp.getUi().alert("Please select a date column to cancel.");
+        return;
+    }
+
+    var res = SpreadsheetApp.getUi().alert("Cancel Week", "Are you sure you want to cancel the week of " + headerVal + "?", SpreadsheetApp.getUi().ButtonSet.YES_NO);
+    if (res === SpreadsheetApp.getUi().Button.YES) {
+        try {
+            SheetService.cancelWeek(sheet.getName(), col);
+            SpreadsheetApp.getUi().alert("Success", "Week Cancelled and Locked.", SpreadsheetApp.getUi().ButtonSet.OK);
+        } catch (e) {
+            SpreadsheetApp.getUi().alert("Error", e.message, SpreadsheetApp.getUi().ButtonSet.OK);
+        }
     }
 }

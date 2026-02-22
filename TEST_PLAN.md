@@ -30,3 +30,4 @@ The application relies entirely on manual testing workflows within the Google Sh
 1. Ensure "April 2026" is still selected from the target month dropdown.
 2. Click **"Update Signup Sheet"**.
    - **Verification:** The "April 2026_Signup" tab should be completely deleted from the Google Sheet (this prevents players from modifying their inputs after the draw is published). All the final, post-lottery data should be populated into "April 2026", overwriting the manual entries, and the remaining slots should be cleared.
+- Use the Dev Tools -> Log Formatting menu to get the formatting details.

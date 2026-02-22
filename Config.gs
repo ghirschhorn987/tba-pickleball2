@@ -27,6 +27,30 @@ var CONFIG = {
     BORDER: '#000000'
   },
 
+  // Template Formatting Constants from "MANUAL MONTHLY TEMPLATE"
+  TEMPLATE_FORMATTING: {
+    columnWidths: {
+      1: 130, // Name
+      2: 160, // Email
+      3: 90,  // Pair With Previous
+      4: 90,  // Lottery Status
+      5: 100, // Player Action
+      6: 100, // Time Slot
+      defaultDateWidth: 100 // Sunday columns
+    },
+    headerRow: {
+      fontFamily: 'Arial',
+      fontSize: 14,
+      fontWeight: 'bold',
+      fontStyle: 'normal',
+      fontColor: '#000000',
+      background: '#efefef',
+      horizontalAlignment: 'center',
+      verticalAlignment: 'middle',
+      wrapText: true
+    }
+  },
+  
   // Lottery Weights/Priorities (Higher score = higher priority to play)
   // Note: The logic handles these specifically, but constants can be useful
 };

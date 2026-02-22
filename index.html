@@ -117,8 +117,8 @@
   <div class="control-group">
     <label>Operations</label>
     <button onclick="runLottery()">Run Lottery</button>
-    <!-- Update Signup isn't fully implemented yet on server but button exists -->
-    <button onclick="updateSignup()">Update Signup Sheet</button>
+    <button onclick="publishResults()">Publish Results</button>
+    <button onclick="finalizeMonth()">Finalize Month</button>
   </div>
 
   <div id="status"></div>
@@ -201,13 +201,23 @@
         .runLottery(m);
     }
 
-    function updateSignup() {
+    function publishResults() {
       var m = getSelectedMonth();
-      showStatus('Updating signup sheet for ' + m + '...', 'info', true);
+      showStatus('Publishing results for ' + m + '...', 'info', true);
       google.script.run
         .withSuccessHandler(function (res) { showStatus(res, 'success'); })
         .withFailureHandler(function (err) { showStatus(err.message, 'error'); })
-        .updateSignupSheet(m);
+        .publishResults(m);
+    }
+
+    function finalizeMonth() {
+      var m = getSelectedMonth();
+      if (!confirm('Are you sure you want to Finalize ' + m + '? This locks the sheet and updates history.')) return;
+      showStatus('Finalizing month ' + m + '...', 'info', true);
+      google.script.run
+        .withSuccessHandler(function (res) { showStatus(res, 'success'); })
+        .withFailureHandler(function (err) { showStatus(err.message, 'error'); })
+        .finalizeMonth(m);
     }
 
   </script>
