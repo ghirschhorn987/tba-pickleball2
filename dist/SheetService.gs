@@ -28,14 +28,11 @@ var SheetService = (function() {
     var ss = _getSpreadsheet(CONFIG.PUBLIC_SHEET_ID);
     
     // Check if exists
-    if (ss.getSheetByName(monthName) || ss.getSheetByName(monthName + '_Signup')) {
-      throw new Error('Sheets for ' + monthName + ' already exist.');
+    if (ss.getSheetByName(monthName)) {
+      throw new Error('Sheet for ' + monthName + ' already exists.');
     }
 
-    // Create the Main display sheet
     var sheet = ss.insertSheet(monthName);
-    // Create the active Signup sheet
-    var signupSheet = ss.insertSheet(monthName + '_Signup');
     
     // Calculate Sundays
     var sundays = _getSundaysInMonth(monthName);
@@ -108,22 +105,6 @@ var SheetService = (function() {
     var rules = sheet.getConditionalFormatRules();
     rules.push(ruleAvailable);
     sheet.setConditionalFormatRules(rules);
-
-    // EXACT same formatting for the Signup sheet
-    signupSheet.setFrozenRows(1);
-    signupSheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
-    
-    // Copy the entire formatted range from the Main sheet to the Signup sheet
-    var sourceRange = sheet.getRange(2, 1, currentRow - 2, headers.length);
-    var targetRange = signupSheet.getRange(2, 1, currentRow - 2, headers.length);
-    sourceRange.copyTo(targetRange); // Copy values, formats, data validations, everything
-    
-    // Set matching column widths on Signup Sheet
-    signupSheet.setColumnWidth(1, 200); 
-    signupSheet.setColumnWidth(2, 300);
-    if (headers.length > 4) {
-      signupSheet.setColumnWidths(5, headers.length - 4, 200);   
-    }
   }
 
   /**
@@ -173,14 +154,10 @@ var SheetService = (function() {
    */
   function clearMonthTab(monthName) {
     var ss = _getSpreadsheet(CONFIG.PUBLIC_SHEET_ID);
-    
-    // Delete main sheet
     var sheet = ss.getSheetByName(monthName);
-    if (sheet) ss.deleteSheet(sheet);
-    
-    // Delete signup sheet
-    var signupSheet = ss.getSheetByName(monthName + '_Signup');
-    if (signupSheet) ss.deleteSheet(signupSheet);
+    if (sheet) {
+      ss.deleteSheet(sheet);
+    }
   }
   
   /**
@@ -188,16 +165,9 @@ var SheetService = (function() {
    */
   function getSignupData(monthName) {
     var ss = _getSpreadsheet(CONFIG.PUBLIC_SHEET_ID);
-    // Lottery reads from the _Signup sheet!
-    var sheet = ss.getSheetByName(monthName + '_Signup'); 
-    
-    // If the Signup sheet is missing, fallback to main sheet (in case it was already finalized)
+    var sheet = ss.getSheetByName(monthName);
     if (!sheet) {
-       sheet = ss.getSheetByName(monthName);
-    }
-
-    if (!sheet) {
-      throw new Error('Signup Sheet ' + monthName + '_Signup not found.');
+      throw new Error('Sheet ' + monthName + ' not found.');
     }
     
     var data = sheet.getDataRange().getValues();

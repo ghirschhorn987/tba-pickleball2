@@ -2,7 +2,7 @@
  * Serves the HTML file for the web app.
  */
 function doGet() {
-    return HtmlService.createHtmlOutputFromFile('index')
+    return HtmlService.createHtmlOutputFromFile('tba-pickleball2/index')
         .setTitle('Pickleball Manager')
         .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }
@@ -80,7 +80,7 @@ function onEdit(e) {
  * Shows a sidebar.
  */
 function showSidebar() {
-    var html = HtmlService.createHtmlOutputFromFile('index')
+    var html = HtmlService.createHtmlOutputFromFile('tba-pickleball2/index')
         .setTitle('Pickleball Manager')
         .setWidth(300);
     SpreadsheetApp.getUi().showSidebar(html);
