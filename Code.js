@@ -45,8 +45,8 @@ function onEdit(e) {
         }
 
         // --- 4.2 Duplicate Validation ---
-        // If they typed a real name, check if they are already signed up somewhere else this month
-        if (newValue && newValue !== '' && newValue !== 'Available') {
+        // Duplicate validation ONLY applies to active '_Signup' tabs
+        if (sheetName.endsWith('_Signup') && newValue && newValue !== '' && newValue !== 'Available') {
             var dataRange = sheet.getRange(2, 1, sheet.getLastRow() - 1, 1);
             var names = dataRange.getValues();
             var count = 0;
