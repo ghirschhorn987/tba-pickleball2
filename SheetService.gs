@@ -93,6 +93,18 @@ var SheetService = (function() {
     if (headers.length > 4) {
       sheet.setColumnWidths(5, headers.length - 4, 200);   
     }
+
+    // Apply Conditional Formatting for "Available" (Yellow)
+    var rangeToFormat = sheet.getRange(2, 1, currentRow - 2, 1); // Only Column A names
+    var ruleAvailable = SpreadsheetApp.newConditionalFormatRule()
+      .whenTextEqualTo('Available')
+      .setBackground(CONFIG.COLORS.AVAILABLE)
+      .setRanges([rangeToFormat])
+      .build();
+      
+    var rules = sheet.getConditionalFormatRules();
+    rules.push(ruleAvailable);
+    sheet.setConditionalFormatRules(rules);
   }
 
   /**
