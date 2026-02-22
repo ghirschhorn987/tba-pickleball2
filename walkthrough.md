@@ -1,49 +1,31 @@
-# Walkthrough - TBA Pickleball Manager
+# TBA Pickleball Manager: Feature Implementation
 
-This document guides you through verifying the Pickleball Manager system.
+## Overview
+We've successfully implemented the core lottery algorithm and sheet management features outlined in the initial specification. This document summarizes the changes made to the codebase to achieve full functionality.
 
-## Prerequisites
+## Implemented Features
 
-1.  **Open the Google Sheet** associated with this script.
-2.  **Refresh the page** to ensure the Apps Script loads.
-3.  You should see a new menu item called **"Pickleball Menu"** in the toolbar (it may take a few seconds to appear).
+### 1. Persistent History Tracking
+The system now properly reads from and writes to the "History" tab in the Admin Spreadsheet.
+*   **Reading:** `LotteryService._getHistoryData()` was implemented to parse the horizontal layout of the history table, reading left-to-right (Reverse Chronological: Most recent month -> Oldest).
+*   **Calculating Weight:** `LotteryService._getPlayerStats()` correctly accesses the last 10 months and calculates the number of rejections, declines, and tracks the last month played. These metrics are then weighed in `_calculateScore()` to prioritize un-selected players fairly.
+*   **Writing:** `SheetService.updateHistory()` automatically adds a new column (Column C) for the current month when a lottery is run, pushing old history backward, and marks players as either "Selected" or "Waitlist".
 
-## Verification Steps
+### 2. Paired Player Constraints
+The lottery assignment logic in `LotteryService._writeLotteryResults()` was updated to respect the 12-player cap while honoring "Pairing Requests".
+*   If a player is marked as `[Paired]`, the application checks capacity.
+*   If fitting the pair would cause the slot to exceed 12 winners, both players in the pair are assigned to the "Waitlist", and the system finds the next solo winner.
 
-### 1. Initial Setup
-- Click **Pickleball Menu** > **Open Sidebar**.
-- The sidebar should open on the right side of the screen.
+### 3. Public Sheet Pruning
+The "Update Signup Sheet" button is now fully functional.
+*   **Backend:** `SheetService.updateSignupSheet(monthName)` reads the finalized winners directly from the `"Lottery"` tab. It then finds the target month's tab on the public sheet and clears all but the selected players for each specific time slot block.
+*   **Frontend:** The function is exposed via `Code.js` and wired to the button in the `index.html` sidebar UI.
 
-### 2. Create a Month
-- In the Sidebar, select a month (e.g., "October 2023").
-- Ensure "Sundays" is set to 4 or 5.
-- Click **"Create Month"**.
-- **Verify**: A new tab named "October 2023" (or selected month) appears. It should have:
-    - Color-coded sections for 4 time slots.
-    - Thick borders separating slots.
-    - Headers including "Name", "Email", "Time Slot", "Pairing".
+### 4. Data Validation and Formatting
+The public-facing sheet now reacts automatically to player actions via programmatic rules and an Apps Script `onEdit` trigger in `Code.js`.
+*   **Availability:** When creating a month tab (`SheetService.createMonthTab()`), a formatting rule is automatically injected so any cell typed as exactly `"Available"` turns Yellow.
+*   **Replacement Tracking:** If a user types their name over a cell that previously said `"Available"`, the `onEdit` trigger detects the overwrite and automatically changes the background to Light Blue.
+*   **Duplicate Checking:** The `onEdit` trigger scans Column A. If a user attempts to sign up more than once for the current month across different time slots, they are blocked by a popup `alert()` and the duplicate cell is instantly wiped.
 
-### 3. Generate Test Data
-- With the month selected in the dropdown, click **"Create Test Data"**.
-- **Verify**: The sheet populates with dummy data.
-    - Names like "A_Player_1", "B_Player_1".
-    - Some rows should be "Available" (Yellow background).
-    - Some rows should have "With Above" in the Pairing column.
-
-### 4. Run Lottery
-- Click **"Run Lottery"**.
-- **Verify**:
-    - A new tab named **"Lottery"** is created (if not exists).
-    - The tab contains a list of "Winners" for each slot.
-    - Verify that the count of winners matches the limit (12 per slot).
-
-### 5. Clear Month (Cleanup)
-- Click **"Clear Month"**.
-- Confirm the dialog.
-- **Verify**: The month tab is deleted.
-
-## Troubleshooting
-
-- **"Script function not found"**: If you see this, try reloading the sheet again.
-- **"Sheet with this name already exists"**: Delete the tab manually or use the "Clear Month" button before creating it again.
-- **Config IDs**: If functions fail with ID errors, ensure `Config.gs` has `REPLACE_WITH_PUBLIC_SHEET_ID` replaced with the actual ID, or rely on the fallback which uses the active sheet.
+## Version Control Structure
+A local Git repository was initialized containing the entire Google Apps Script payload, and the project has been fully synced to a remote GitHub repository.
