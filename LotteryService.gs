@@ -75,6 +75,9 @@ var LotteryService = (function() {
     // 3. Update Admin Sheet (Lottery Tab)
     _writeLotteryResults(monthName, resultsBySlot);
     
+    // 4. Update History Tab with the results
+    SheetService.updateHistory(monthName, resultsBySlot);
+    
     return { results: resultsBySlot };
   }
   

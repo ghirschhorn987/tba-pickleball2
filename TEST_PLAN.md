@@ -21,12 +21,12 @@ The application relies entirely on manual testing workflows within the Google Sh
 3. Look at your "April 2026_Signup" tab in the Google Sheet. It should instantly populate with dozens of fake names and partner requests. Ensure the generated names follow the A, B, C realistic name format (e.g. Alice_1) and do not repeat within a given time slot.
 
 ### Step 4: Test the Lottery Logic
-1. Switch to the **Lottery Controls** tab.
-2. Select "April 2026" from the target month dropdown.
-3. Click **"Run Lottery"**.
+1. Ensure "April 2026" is still selected from the target month dropdown.
+2. Click **"Run Lottery"**.
    - **Verification:** Look at the "Lottery" tab on the Admin sheet. You should see days of the week successfully generated with players each, split into pairs by weight matching or randomized if not specified, and waitlists populated appropriately below the top names.
+   - **Verification 2:** Look at the "History" tab on the Admin sheet. A new column for the evaluated month should appear, logging which players were selected and which were waitlisted.
 
 ### Step 5: Test the Pruning/Cleanup Logic (Phase 3)
-1. Go back to the **Setup Manager** tab in the sidebar.
-2. Click **"Finalize Month"** (ensure "April 2026" is selected).
+1. Ensure "April 2026" is still selected from the target month dropdown.
+2. Click **"Update Signup Sheet"**.
    - **Verification:** The "April 2026_Signup" tab should be completely deleted from the Google Sheet (this prevents players from modifying their inputs after the draw is published). All the final, post-lottery data should be populated into "April 2026", overwriting the manual entries, and the remaining slots should be cleared.

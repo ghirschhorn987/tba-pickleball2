@@ -349,6 +349,12 @@ var SheetService = (function() {
         targetRange.setValues(blockData);
         currentRow += rowCount;
      });
+     
+     // FINALIZE: Delete the _Signup tab so players can no longer edit values
+     var signupSheet = publicSs.getSheetByName(monthName + '_Signup');
+     if (signupSheet) {
+         publicSs.deleteSheet(signupSheet);
+     }
   }
 
   return {
