@@ -7,19 +7,18 @@
   <style>
     body {
       font-family: 'Roboto', sans-serif;
-      padding: 15px;
+      padding: 0 15px 15px 15px;
+      /* Removed top padding to move elements higher */
       background-color: #f5f5f5;
       color: #333;
     }
 
-    h1 {
-      font-size: 1.2rem;
-      margin-bottom: 20px;
-      text-align: center;
-      color: #2c3e50;
-    }
+    /* h1 removed to save space */
+
 
     .control-group {
+      margin-top: 15px;
+      /* Added slight top margin since padding was removed */
       margin-bottom: 15px;
       background: white;
       padding: 15px;
@@ -103,28 +102,29 @@
 </head>
 
 <body>
-  <h1>Pickleball Manager</h1>
+  <!-- Title removed to save vertical space -->
 
   <div class="control-group">
     <label for="monthSelect">Select Month</label>
     <select id="monthSelect" onchange="updateWeeksDropdown()"></select>
 
-    <button onclick="createMonth()">Create Month</button>
-    <button class="secondary" onclick="createTestData()">Create Test Data</button>
-    <button class="danger" onclick="clearMonth()">Clear Month</button>
+    <button onclick="createMonth()">Create Month in Signup Sheet</button>
+    <button class="secondary" onclick="createTestData()">Create Test Data in Signup Sheet</button>
+    <button class="danger" onclick="clearMonth()">Clear Month in Signup Sheet</button>
   </div>
 
   <div class="control-group">
     <label>Operations</label>
-    <button onclick="runLottery()">Run Lottery</button>
-    <button onclick="publishResults()">Publish Results</button>
-    <button onclick="finalizeMonth()">Finalize Month</button>
+    <button onclick="validateSignupData()">Validate Names and Emails on Signup Sheet</button>
+    <button onclick="runLottery()">Copy from Signup Sheet and Run Lottery</button>
+    <button onclick="publishResults()">Publish Lottery Results to Signup Sheet</button>
+    <button onclick="finalizeMonth()">Finalize Month in Signup Sheet</button>
   </div>
 
   <div class="control-group">
     <label for="weekSelect">Cancel Week</label>
     <select id="weekSelect"></select>
-    <button class="danger" onclick="cancelSelectedWeek()">Lock & Cancel Week</button>
+    <button class="danger" onclick="cancelSelectedWeek()">Cancel Week in Signup Sheet</button>
   </div>
 
   <div id="status"></div>
@@ -198,6 +198,23 @@
         .withSuccessHandler(function (res) { showStatus(res, 'success'); })
         .withFailureHandler(function (err) { showStatus(err.message, 'error'); })
         .createTestData(m);
+    }
+
+    function validateSignupData() {
+      var m = getSelectedMonth();
+      showStatus('Validating signup data for ' + m + '...', 'info', true);
+      google.script.run
+        .withSuccessHandler(function (res) {
+          // Display multiline result elegantly
+          var el = document.getElementById('status');
+          el.innerHTML = res.replace(/\n/g, '<br/>');
+          el.className = 'info';
+          el.style.display = 'block';
+          if (statusTimeout) clearTimeout(statusTimeout);
+          // keepAlive is effectively true because we don't set a timeout to hide it, letting the user read the list
+        })
+        .withFailureHandler(function (err) { showStatus(err.message, 'error'); })
+        .validateSignupData(m);
     }
 
     function runLottery() {

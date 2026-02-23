@@ -78,6 +78,58 @@ var LotteryService = (function() {
     return { results: resultsBySlot };
   }
   
+  /**
+   * Validates the names and emails on the Signup Sheet against History.
+   * Returns a report of matches vs new players.
+   */
+  function validateSignupData(monthName) {
+    var signupData = SheetService.getSignupData(monthName);
+    var historyData = _getHistoryData();
+    var signupsBySlot = _groupSignups(signupData);
+    
+    var uniqueCurrentPlayers = {}; // To avoid counting someone twice if they signed up for multiple slots
+    
+    Object.keys(signupsBySlot).forEach(function(slotKey) {
+        var players = signupsBySlot[slotKey];
+        players.forEach(function(p) {
+            var key = (p.email && p.email !== '') ? p.email.toLowerCase() : p.name.toLowerCase();
+            if (!uniqueCurrentPlayers[key]) {
+                uniqueCurrentPlayers[key] = {
+                    name: p.name,
+                    email: p.email,
+                    key: key
+                };
+            }
+        });
+    });
+    
+    var totalSignups = 0;
+    var matchedHistory = 0;
+    var newPlayers = [];
+    
+    Object.keys(uniqueCurrentPlayers).forEach(function(key) {
+        totalSignups++;
+        var player = uniqueCurrentPlayers[key];
+        
+        // Exact same history check algorithm
+        var statuses = historyData[key];
+        if (statuses && statuses.length > 0) {
+            matchedHistory++;
+        } else {
+            newPlayers.push(player.name + (player.email ? ' (' + player.email + ')' : ''));
+        }
+    });
+    
+    if (newPlayers.length === 0) {
+        return "Validation Complete: " + totalSignups + " unique players found. All " + matchedHistory + " perfectly matched historical records! No new players.";
+    } else {
+        return "Validation Complete: " + totalSignups + " unique players found.\n" +
+               "- Matched History: " + matchedHistory + "\n" +
+               "- Brand New Players: " + newPlayers.length + "\n\n" +
+               "New Players List:\n" + newPlayers.join('\n');
+    }
+  }
+  
   // --- Helper Functions ---
 
   function _groupSignups(data) {
@@ -305,7 +357,8 @@ var LotteryService = (function() {
   }
 
   return {
-    runLottery: runLottery
+    runLottery: runLottery,
+    validateSignupData: validateSignupData
   };
 
 })();

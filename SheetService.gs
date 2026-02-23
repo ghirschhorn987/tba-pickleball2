@@ -636,6 +636,13 @@ var SheetService = (function() {
              sheet.getRange(rowToUpdate, 3).setValue(p.explicitStatus);
          });
      });
+     
+     // Sort the history tab alphabetically by Name (Column A), ignoring the header row
+     var lastRow = sheet.getLastRow();
+     if (lastRow > 1) {
+         var dataRange = sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn());
+         dataRange.sort({column: 1, ascending: true});
+     }
   }
 
   /**

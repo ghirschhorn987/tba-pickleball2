@@ -166,6 +166,17 @@ function createTestData(monthName) {
 }
 
 /**
+ * Validates the signup data for the selected month against history.
+ */
+function validateSignupData(monthName) {
+    try {
+        return LotteryService.validateSignupData(monthName);
+    } catch (e) {
+        throw new Error(e.message);
+    }
+}
+
+/**
  * Runs the lottery.
  */
 function runLottery(monthName) {
