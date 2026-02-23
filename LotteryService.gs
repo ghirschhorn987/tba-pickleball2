@@ -88,17 +88,23 @@ var LotteryService = (function() {
     var signupsBySlot = _groupSignups(signupData);
     
     var uniqueCurrentPlayers = {}; // To avoid counting someone twice if they signed up for multiple slots
+    var multiSlotSignups = {};
     
     Object.keys(signupsBySlot).forEach(function(slotKey) {
         var players = signupsBySlot[slotKey];
+        var slotName = CONFIG.SLOTS[slotKey].name;
         players.forEach(function(p) {
             var key = CONFIG.GENERATE_KEY(p.name, p.email);
             if (!uniqueCurrentPlayers[key]) {
                 uniqueCurrentPlayers[key] = {
                     name: p.name,
                     email: p.email,
-                    key: key
+                    key: key,
+                    slots: [slotName]
                 };
+            } else {
+                uniqueCurrentPlayers[key].slots.push(slotName);
+                multiSlotSignups[key] = uniqueCurrentPlayers[key];
             }
         });
     });
@@ -123,30 +129,55 @@ var LotteryService = (function() {
         }
         
         // Exact history check
-        var statuses = historyData[key];
-        if (statuses && statuses.length > 0) {
-            matchedHistory++;
-        } else {
-            // Check for partial match: Name match but different email, or Email match but different name
+        var histObj = historyData[key];
+        if (histObj && histObj.statuses.length > 0) {
+            // Key matched. Check if name and email actually matched historical record perfectly
+            var hNameKey = CONFIG.GENERATE_KEY(histObj.name, '');
+            var hEmailKey = CONFIG.GENERATE_KEY('', histObj.email);
             var pNameKey = CONFIG.GENERATE_KEY(player.name, '');
+            
+            var nameDiffers = (hNameKey !== pNameKey);
+            var emailDiffers = (hEmailKey !== pEmail);
+            
+            // If the key matched, it means at least one of them matched perfectly
+            if (nameDiffers || emailDiffers) {
+                // Determine reason
+                var reason = '';
+                if (nameDiffers && !emailDiffers) {
+                    reason = "Email perfectly matches history, but Name differs from historical name '" + histObj.name + "'";
+                } else if (!nameDiffers && emailDiffers) {
+                    reason = "Name perfectly matches history, but Email differs from historical email '" + histObj.email + "'";
+                } else {
+                    reason = "Both Name and Email differ slightly from history ('" + histObj.name + "' / '" + histObj.email + "')";
+                }
+                partialMatches.push(player.name + (player.email ? ' (' + player.email + ')' : '') + " -> " + reason);
+            } else {
+                matchedHistory++;
+            }
+        } else {
+            // Check for partial match: Name match but different email, or Email match but different name across ALL history
             var isPartialMatch = false;
             var partialReason = '';
+            var pNameKey = CONFIG.GENERATE_KEY(player.name, '');
             
-            // Note: historyData keys are either email or name
-            // Let's iterate history keys to find partials
             var histKeys = Object.keys(historyData);
             for (var i = 0; i < histKeys.length; i++) {
                 var hKey = histKeys[i];
-                // Since historyData doesn't store the raw names/emails directly (just statuses keyed by id), 
-                // we only have the hKey (which is either their lowercase email or lowercase name)
-                if (pEmail !== '' && hKey === pEmail) {
+                var hObj = historyData[hKey];
+                
+                var hEmailVal = CONFIG.GENERATE_KEY('', hObj.email);
+                var hNameVal = CONFIG.GENERATE_KEY(hObj.name, '');
+                
+                // Check if the current player's email matches ANY history key's email
+                if (pEmail !== '' && hEmailVal === pEmail) {
                     isPartialMatch = true;
-                    partialReason = "Email '" + player.email + "' found in history under a different name.";
+                    partialReason = "Email '" + player.email + "' found in history under a different name ('" + hObj.name + "').";
                     break;
                 }
-                if (pNameKey !== '' && hKey === pNameKey) {
+                // Check if the current player's name matches ANY history key's name
+                if (pNameKey !== '' && hNameVal === pNameKey) {
                     isPartialMatch = true;
-                    partialReason = "Name '" + player.name + "' found in history with a different (or missing) email.";
+                    partialReason = "Name '" + player.name + "' found in history with a different (or missing) email ('" + hObj.email + "').";
                     break;
                 }
             }
@@ -172,11 +203,22 @@ var LotteryService = (function() {
             }
         }
     });
+
+    // Report Multi-Slot Signups
+    var multiSlotKeys = Object.keys(multiSlotSignups);
     
     var output = "Validation Complete: " + totalSignups + " unique players found.\n";
     output += "- Matched History: " + matchedHistory + "\n";
     output += "- Partial Matches: " + partialMatches.length + "\n";
     output += "- Brand New Players: " + newPlayers.length + "\n";
+    
+    if (multiSlotKeys.length > 0) {
+        output += "\n⚠️ WARNING: Multi-Slot Signups Detected\n";
+        multiSlotKeys.forEach(function(k) {
+            var p = multiSlotSignups[k];
+            output += p.name + " signed up for " + p.slots.length + " slots: (" + p.slots.join(', ') + ")\n";
+        });
+    }
     
     if (duplicateEmails.length > 0) {
         output += "\n⚠️ WARNING: Duplicate Emails Detected\n" + duplicateEmails.join('\n') + "\n";
@@ -188,7 +230,7 @@ var LotteryService = (function() {
         output += "\nBrand New Players:\n" + newPlayers.join('\n') + "\n";
     }
     
-    if (newPlayers.length === 0 && partialMatches.length === 0 && duplicateEmails.length === 0) {
+    if (newPlayers.length === 0 && partialMatches.length === 0 && duplicateEmails.length === 0 && multiSlotKeys.length === 0) {
         output += "\nAll " + matchedHistory + " perfectly matched historical records! No issues found.";
     }
     
@@ -242,19 +284,23 @@ var LotteryService = (function() {
         
         // Everything from index 2 onwards are the monthly statuses (Index 2 is the MOST recent month)
         var statuses = row.slice(2);
-        historyMap[key] = statuses;
+        historyMap[key] = {
+            name: name,
+            email: email,
+            statuses: statuses
+        };
     }
     
     return historyMap;
   }
   
-  function _getPlayerStats(name, email, historyData) {
-     var stats = new PlayerStats(name, email);
+     var statObj = new PlayerStats(name, email);
      var key = CONFIG.GENERATE_KEY(name, email);
-     var statuses = historyData[key];
+     var histObj = historyData[key];
+     var statuses = histObj ? histObj.statuses : [];
      
      if (!statuses || statuses.length === 0) {
-         return stats; // Brand new player
+         return statObj; // Brand new player
      }
 
      // Analyze the last 10 months (which are the first 10 elements in the array since the newest is at index 0)
