@@ -294,13 +294,14 @@ var LotteryService = (function() {
     return historyMap;
   }
   
-     var statObj = new PlayerStats(name, email);
+  function _getPlayerStats(name, email, historyData) {
+     var stats = new PlayerStats(name, email);
      var key = CONFIG.GENERATE_KEY(name, email);
      var histObj = historyData[key];
      var statuses = histObj ? histObj.statuses : [];
      
      if (!statuses || statuses.length === 0) {
-         return statObj; // Brand new player
+         return stats; // Brand new player
      }
 
      // Analyze the last 10 months (which are the first 10 elements in the array since the newest is at index 0)
