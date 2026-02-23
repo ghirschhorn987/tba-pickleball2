@@ -227,7 +227,7 @@ var SheetService = (function() {
      for (var i = 1; i < data.length; i++) {
          var name = data[i][0];
          var email = data[i][1];
-         var key = (email && email !== '') ? email.toLowerCase() : name.toLowerCase();
+         var key = CONFIG.GENERATE_KEY(name, email);
          // i is 0-indexed based on data array, but rows are 1-indexed. row = i + 1
          if (key) {
              playerRowMap[key] = i + 1;
@@ -248,7 +248,7 @@ var SheetService = (function() {
          slotPlayers.forEach(function(p, index) {
              var status = (index < maxWinners) ? 'Selected' : 'Waitlist';
              // Default to email as key, fallback to name
-             var key = (p.email && p.email !== '') ? p.email.toLowerCase() : p.name.toLowerCase();
+             var key = CONFIG.GENERATE_KEY(p.name, p.email);
              allParticipants.push({
                  name: p.name,
                  email: p.email,
@@ -305,7 +305,7 @@ var SheetService = (function() {
         var name = row[1];
         var email = row[2];
         var status = row[4];
-        var key = (email && email !== '') ? email.toLowerCase() : name.toLowerCase();
+        var key = CONFIG.GENERATE_KEY(name, email);
         
         // Include position in Waitlist if waitlisted (Waitlist #1, Waitlist #2 etc)
         // Since players are ranked in sequence per slot, we can calculate waitlist pos
@@ -333,11 +333,11 @@ var SheetService = (function() {
         }
         if (row[0] === 'Pos' || row[0] === '---' || !currentWaitlistSlot) continue;
         if (row[4] !== 'Selected') {
-            var key = (row[2] && row[2] !== '') ? row[2].toLowerCase() : row[1].toLowerCase();
+            var key = CONFIG.GENERATE_KEY(row[1], row[2]);
             statusMap[key].displayStatus = 'Waitlist #' + waitlistIndex;
             waitlistIndex++;
         } else {
-            var key = (row[2] && row[2] !== '') ? row[2].toLowerCase() : row[1].toLowerCase();
+            var key = CONFIG.GENERATE_KEY(row[1], row[2]);
             statusMap[key].displayStatus = 'Selected';
         }
      }
@@ -378,7 +378,7 @@ var SheetService = (function() {
          // Skip empty rows and section headers
          if (!name || name === '' || name === 'Available' || name.indexOf('Slot:') === 0 || CONFIG.SLOTS[name]) continue;
          
-         var key = (email && email !== '') ? email.toLowerCase() : name.toLowerCase();
+         var key = CONFIG.GENERATE_KEY(name, email);
          var playerRes = statusMap[key];
          
          if (playerRes) {
@@ -612,7 +612,7 @@ var SheetService = (function() {
      var data = sheet.getDataRange().getValues();
      var playerRowMap = {}; 
      for (var i = 1; i < data.length; i++) {
-         var key = (data[i][1] && data[i][1] !== '') ? data[i][1].toLowerCase() : data[i][0].toLowerCase();
+         var key = CONFIG.GENERATE_KEY(data[i][0], data[i][1]);
          if (key) playerRowMap[key] = i + 1;
      }
 
@@ -621,7 +621,7 @@ var SheetService = (function() {
      Object.keys(finalResultsBySlot).forEach(function(slotKey) {
          var slotPlayers = finalResultsBySlot[slotKey];
          slotPlayers.forEach(function(p) {
-             var key = (p.email && p.email !== '') ? p.email.toLowerCase() : p.name.toLowerCase();
+             var key = CONFIG.GENERATE_KEY(p.name, p.email);
              
              var rowToUpdate;
              if (playerRowMap[key]) {

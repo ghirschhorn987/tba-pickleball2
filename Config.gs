@@ -53,4 +53,14 @@ var CONFIG = {
   
   // Lottery Weights/Priorities (Higher score = higher priority to play)
   // Note: The logic handles these specifically, but constants can be useful
+  
+  /**
+   * Generates a normalized unique key for a player using email or name.
+   * Strips leading/trailing whitespace and collapses multiple internal spaces.
+   */
+  GENERATE_KEY: function(name, email) {
+      name = (name || '').toString().trim().replace(/\s+/g, ' ').toLowerCase();
+      email = (email || '').toString().trim().replace(/\s+/g, ' ').toLowerCase();
+      return (email !== '') ? email : name;
+  }
 };

@@ -52,7 +52,7 @@ function onEdit(e) {
 
             for (var i = 0; i < names.length; i++) {
                 var n = names[i][0];
-                if (n && n.toString().toLowerCase() === newValue.toString().toLowerCase()) {
+                if (n && CONFIG.GENERATE_KEY(n, '') === CONFIG.GENERATE_KEY(newValue, '')) {
                     count++;
                 }
             }
